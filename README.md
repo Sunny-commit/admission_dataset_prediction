@@ -1,281 +1,366 @@
-# 🎓 Admission Prediction - Regression Analysis
+# 📊 Admission Dataset Prediction - Classification
 
-A **machine learning regression project** predicting university graduate program admission chances based on GRE scores, TOEFL scores, GPA, and other factors.
+A **machine learning system** for predicting university admission outcomes using student metrics and ensemble models.
 
 ## 🎯 Overview
 
-This project covers:
-- ✅ Regression model building
-- ✅ Feature analysis & correlation
-- ✅ Linear & non-linear regression
-- ✅ Model comparison
-- ✅ Prediction confidence intervals
-- ✅ Residual analysis
+This project provides:
+- ✅ Admission data analysis
+- ✅ Student metric engineering
+- ✅ Classification models
+- ✅ Feature selection
+- ✅ Probability calibration
+- ✅ Early prediction
+- ✅ University insights
 
-## 📊 Dataset Features
+## 📖 Data Analysis
 
 ```python
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-class AdmissionDataAnalysis:
-    """Analyze admission dataset"""
-    
-    def __init__(self, filepath='admission_predict.csv'):
-        self.df = pd.read_csv(filepath)
-    
-    def explore_data(self):
-        """Exploratory analysis"""
-        print(f"Shape: {self.df.shape}")
-        print(f"\nColumns: {self.df.columns.tolist()}")
-        print(f"\nData types:\n{self.df.dtypes}")
-        print(f"\nMissing values: {self.df.isnull().sum().sum()}")
-        print(f"\nBasic stats:\n{self.df.describe()}")
-    
-    def correlation_analysis(self):
-        """Analyze feature correlations"""
-        corr = self.df.corr()
-        
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(corr, annot=True, cmap='coolwarm', center=0)
-        plt.title('Feature Correlation Matrix')
-        plt.show()
-        
-        # Correlation with target
-        target_corr = corr['Chance of Admit '].sort_values(ascending=False)
-        print("\nCorrelation with Admission Chance:")
-        print(target_corr)
-        
-        return corr
-    
-    def visualize_distributions(self):
-        """Plot feature distributions"""
-        fig, axes = plt.subplots(2, 4, figsize=(16, 10))
-        axes = axes.flatten()
-        
-        for idx, col in enumerate(self.df.columns[1:]):  # Skip index
-            axes[idx].hist(self.df[col], bins=30, edgecolor='black', alpha=0.7)
-            axes[idx].set_xlabel(col)
-            axes[idx].set_ylabel('Frequency')
-        
-        plt.tight_layout()
-        plt.show()
-```
-
-## 🏗️ Regression Models
-
-```python
-from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.svm import SVR
 from sklearn.preprocessing import StandardScaler
 
-class AdmissionRegressionModels:
-    """Multiple regression models"""
+class AdmissionDataAnalyzer:
+    """Process admission data"""
     
     def __init__(self):
-        self.scaler = StandardScaler()
-        self.models = self._initialize_models()
+        self.data = None
     
-    def _initialize_models(self):
-        """Initialize all models"""
+    def load_data(self, filepath):
+        """Load admission dataset"""
+        self.data = pd.read_csv(filepath)
+        print(f"Dataset shape: {self.data.shape}")
+        print(f"Columns: {list(self.data.columns)}")
+        return self.data
+    
+    def analyze_acceptance_rate(self):
+        """Calculate admission statistics"""
+        df = self.data.copy()
+        
+        total_applicants = len(df)
+        admitted = (df['admitted'] == 1).sum()
+        acceptance_rate = (admitted / total_applicants) * 100
+        
+        stats = {
+            'total_applicants': total_applicants,
+            'admitted': admitted,
+            'rejected': total_applicants - admitted,
+            'acceptance_rate': acceptance_rate
+        }
+        
+        print(f"Acceptance Rate: {acceptance_rate:.2f}%")
+        
+        return stats
+    
+    def analyze_metrics_by_group(self):
+        """Compare admitted vs rejected"""
+        df = self.data.copy()
+        
+        metrics_cols = ['gre_score', 'gmat_score', 'gpa', 'work_experience_years']
+        
+        admitted_stats = df[df['admitted'] == 1][metrics_cols].describe()
+        rejected_stats = df[df['admitted'] == 0][metrics_cols].describe()
+        
+        comparison = pd.DataFrame({
+            'Admitted_Mean': admitted_stats.loc['mean'],
+            'Rejected_Mean': rejected_stats.loc['mean'],
+            'Difference': admitted_stats.loc['mean'] - rejected_stats.loc['mean']
+        })
+        
+        print(comparison)
+        
+        return comparison
+    
+    def feature_engineering(self):
+        """Create derived features"""
+        df = self.data.copy()
+        
+        # Composite score
+        df['composite_score'] = (df['gre_score'] * 0.3 + 
+                                 df['gmat_score'] * 0.2 + 
+                                 df['gpa'] * 50)  # Normalize GPA
+        
+        # Test performance
+        df['test_strong'] = ((df['gre_score'] > 320) | (df['gmat_score'] > 650)).astype(int)
+        
+        # Academic strength
+        df['gpa_excellence'] = (df['gpa'] >= 3.7).astype(int)
+        
+        # Experience proxy
+        df['experienced'] = (df['work_experience_years'] >= 3).astype(int)
+        
+        # University tier
+        if 'university_rank' in df.columns:
+            df['top_university'] = (df['university_rank'] <= 100).astype(int)
+        
+        # Recommendation quality (assume 1-4 scale)
+        if 'recommendation_score' in df.columns:
+            df['strong_recommendation'] = (df['recommendation_score'] >= 3).astype(int)
+        
+        # Statement strength (binary already)
+        if 'statement_score' in df.columns:
+            df['strong_statement'] = (df['statement_score'] >= 3).astype(int)
+        
+        # Overall profile strength
+        strength_features = [
+            'test_strong', 'gpa_excellence', 'experienced', 
+            'strong_recommendation', 'strong_statement'
+        ]
+        
+        if all(col in df.columns for col in strength_features):
+            df['profile_strength'] = df[strength_features].sum(axis=1)
+        
+        return df
+```
+
+## 🤖 Classification Models
+
+```python
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.model_selection import cross_val_score
+
+class AdmissionClassifier:
+    """Predict admission outcomes"""
+    
+    def __init__(self):
+        self.models = {}
+        self.best_model = None
+    
+    def logistic_regression(self, X_train, y_train):
+        """Baseline model"""
+        lr = LogisticRegression(max_iter=1000, random_state=42)
+        lr.fit(X_train, y_train)
+        self.models['lr'] = lr
+        
+        return lr
+    
+    def random_forest(self, X_train, y_train):
+        """Random Forest classifier"""
+        rf = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=12,
+            min_samples_split=5,
+            random_state=42,
+            n_jobs=-1
+        )
+        
+        rf.fit(X_train, y_train)
+        self.models['rf'] = rf
+        
+        return rf
+    
+    def gradient_boosting(self, X_train, y_train):
+        """Gradient Boosting"""
+        gb = GradientBoostingClassifier(
+            n_estimators=100,
+            learning_rate=0.1,
+            max_depth=7,
+            random_state=42
+        )
+        
+        gb.fit(X_train, y_train)
+        self.models['gb'] = gb
+        
+        return gb
+    
+    def svm_classifier(self, X_train, y_train):
+        """SVM with probability"""
+        svm = SVC(
+            kernel='rbf',
+            C=1.0,
+            gamma='scale',
+            probability=True,
+            random_state=42
+        )
+        
+        svm.fit(X_train, y_train)
+        self.models['svm'] = svm
+        
+        return svm
+    
+    def ensemble_voting(self, X_train, y_train):
+        """Ensemble voting"""
+        voting_clf = VotingClassifier(
+            estimators=[
+                ('lr', self.models['lr']),
+                ('rf', self.models['rf']),
+                ('gb', self.models['gb']),
+                ('svm', self.models['svm'])
+            ],
+            voting='soft'
+        )
+        
+        voting_clf.fit(X_train, y_train)
+        self.models['voting'] = voting_clf
+        
+        return voting_clf
+    
+    def predict_admission(self, applicant_features):
+        """Predict for single applicant"""
+        if self.best_model is None:
+            raise ValueError("Model not trained")
+        
+        prediction = self.best_model.predict([applicant_features])[0]
+        probability = self.best_model.predict_proba([applicant_features])[0]
+        
         return {
-            'Linear Regression': LinearRegression(),
-            'Ridge (α=1.0)': Ridge(alpha=1.0),
-            'Lasso (α=0.1)': Lasso(alpha=0.1),
-            'ElasticNet': ElasticNet(alpha=0.1, l1_ratio=0.5),
-            'Random Forest': RandomForestRegressor(n_estimators=100, max_depth=15, random_state=42),
-            'Gradient Boosting': GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42),
-            'SVR (RBF)': SVR(kernel='rbf', C=100, gamma='scale')
+            'admitted': prediction,
+            'admission_probability': probability[1],
+            'rejection_probability': probability[0]
         }
     
-    def explain_models(self):
-        """Explain each model"""
-        explanations = {
-            'Linear Regression': 'y = m1*x1 + m2*x2 + ... + b (assumes linear relationship)',
-            'Ridge': 'Linear with L2 regularization (prevents overfitting)',
-            'Lasso': 'Linear with L1 regularization (feature selection via coefficients=0)',
-            'ElasticNet': 'Combination of Ridge and Lasso',
-            'Random Forest': 'Ensemble of decision trees (handles non-linearity)',
-            'Gradient Boosting': 'Sequential boosting (reduces bias/variance)',
-            'SVR': 'Support Vector Regression (RBF kernel for non-linear patterns)'
-        }
-        
-        for name, desc in explanations.items():
-            print(f"\n{name}:\n  {desc}")
-```
-
-## 📈 Feature Selection
-
-```python
-from sklearn.feature_selection import SelectKBest, f_regression
-from sklearn.preprocessing import StandardScaler
-
-class AdmissionFeatureSelection:
-    """Select important features"""
-    
-    @staticmethod
-    def correlation_based(df, target_col, n_features=None):
-        """Select by correlation"""
-        correlations = df.corr()[target_col].abs().sort_values(ascending=False)
-        
-        if n_features:
-            selected = correlations[1:n_features+1].index.tolist()
-        else:
-            selected = correlations[correlations > 0.3].index.tolist()
-        
-        return selected
-    
-    @staticmethod
-    def statistical_test(X, y, n_features=5):
-        """SelectKBest with f_regression"""
-        selector = SelectKBest(f_regression, k=n_features)
-        selector.fit(X, y)
-        
-        feature_scores = pd.DataFrame({
-            'Feature': X.columns,
-            'Score': selector.scores_
-        }).sort_values('Score', ascending=False)
-        
-        print("Feature Importance Scores:")
-        print(feature_scores)
-        
-        return selector
-```
-
-## 📊 Model Evaluation
-
-```python
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
-class AdmissionEvaluator:
-    """Evaluate regression models"""
-    
-    @staticmethod
-    def calculate_metrics(y_true, y_pred):
-        """Calculate regression metrics"""
-        mae = mean_absolute_error(y_true, y_pred)
-        mse = mean_squared_error(y_true, y_pred)
-        rmse = np.sqrt(mse)
-        r2 = r2_score(y_true, y_pred)
-        
-        return {
-            'MAE': mae,
-            'MSE': mse,
-            'RMSE': rmse,
-            'R²': r2
-        }
-    
-    @staticmethod
-    def compare_models(y_true, predictions_dict):
-        """Compare all models"""
-        results = {}
-        
-        for model_name, y_pred in predictions_dict.items():
-            results[model_name] = AdmissionEvaluator.calculate_metrics(y_true, y_pred)
-        
-        results_df = pd.DataFrame(results).T
-        print("\nModel Comparison:")
-        print(results_df)
-        
-        return results_df
-    
-    @staticmethod
-    def plot_predictions(y_true, y_pred, model_name='Model'):
-        """Plot actual vs predicted"""
-        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-        
-        # Scatter plot
-        axes[0].scatter(y_true, y_pred, alpha=0.6)
-        axes[0].plot([y_true.min(), y_true.max()], 
-                    [y_true.min(), y_true.max()], 'r--', lw=2)
-        axes[0].set_xlabel('Actual')
-        axes[0].set_ylabel('Predicted')
-        axes[0].set_title(f'{model_name}: Actual vs Predicted')
-        axes[0].grid()
-        
-        # Residuals
-        residuals = y_true - y_pred
-        axes[1].scatter(y_pred, residuals, alpha=0.6)
-        axes[1].axhline(y=0, color='r', linestyle='--')
-        axes[1].set_xlabel('Predicted')
-        axes[1].set_ylabel('Residuals')
-        axes[1].set_title('Residual Plot')
-        axes[1].grid()
-        
-        plt.tight_layout()
-        plt.show()
-```
-
-## 🎯 Prediction Confidence Intervals
-
-```python
-from scipy import stats
-
-class PredictionConfidence:
-    """Calculate prediction intervals"""
-    
-    @staticmethod
-    def confidence_interval(y_pred, residuals, confidence=0.95):
-        """Calculate prediction interval"""
-        std_error = np.std(residuals)
-        z_score = stats.norm.ppf((1 + confidence) / 2)
-        
-        margin = z_score * std_error
-        
-        lower = y_pred - margin
-        upper = y_pred + margin
-        
-        return lower, upper
-    
-    @staticmethod
-    def predict_with_interval(model, X_new, residuals, confidence=0.95):
-        """Predict with confidence interval"""
-        y_pred = model.predict(X_new)
-        lower, upper = PredictionConfidence.confidence_interval(y_pred, residuals, confidence)
+    def batch_predict(self, X_test):
+        """Predict for multiple applicants"""
+        probabilities = self.best_model.predict_proba(X_test)
         
         results = pd.DataFrame({
-            'Prediction': y_pred,
-            'Lower Bound': lower,
-            'Upper Bound': upper,
-            'Interval Width': upper - lower
+            'admission_probability': probabilities[:, 1],
+            'predicted_class': self.best_model.predict(X_test)
         })
         
         return results
 ```
 
+## 📈 Model Evaluation
+
+```python
+from sklearn.metrics import classification_report, roc_auc_score, roc_curve, auc
+import matplotlib.pyplot as plt
+
+class AdmissionEvaluator:
+    """Evaluate admission model"""
+    
+    @staticmethod
+    def evaluate_model(model, X_test, y_test):
+        """Comprehensive evaluation"""
+        y_pred = model.predict(X_test)
+        y_pred_proba = model.predict_proba(X_test)
+        
+        roc_auc = roc_auc_score(y_test, y_pred_proba[:, 1])
+        
+        print("Classification Report:")
+        print(classification_report(y_test, y_pred))
+        print(f"\nROC-AUC Score: {roc_auc:.3f}")
+        
+        return {
+            'roc_auc': roc_auc,
+            'predictions': y_pred,
+            'probabilities': y_pred_proba
+        }
+    
+    @staticmethod
+    def admission_threshold_analysis(y_true, y_pred_proba):
+        """Analyze different admission thresholds"""
+        thresholds = [0.3, 0.4, 0.5, 0.6, 0.7]
+        
+        results = []
+        for threshold in thresholds:
+            y_pred = (y_pred_proba[:, 1] >= threshold).astype(int)
+            admitted = y_pred.sum()
+            actual_success_rate = y_true[y_pred == 1].mean()
+            
+            results.append({
+                'threshold': threshold,
+                'applicants_admitted': admitted,
+                'success_rate': actual_success_rate
+            })
+        
+        return pd.DataFrame(results)
+    
+    @staticmethod
+    def plot_roc_curve(y_true, y_pred_proba):
+        """Plot ROC curve"""
+        fpr, tpr, _ = roc_curve(y_true, y_pred_proba[:, 1])
+        roc_auc = auc(fpr, tpr)
+        
+        plt.figure(figsize=(8, 6))
+        plt.plot(fpr, tpr, label=f'ROC curve (AUC = {roc_auc:.2f})')
+        plt.plot([0, 1], [0, 1], 'k--', label='Random')
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Admission Prediction ROC Curve')
+        plt.legend()
+        plt.show()
+```
+
+## 🎓 Admission Insights
+
+```python
+class AdmissionInsights:
+    """Generate admission insights"""
+    
+    @staticmethod
+    def identify_factors(model, feature_names):
+        """Find key admission factors"""
+        if hasattr(model, 'feature_importances_'):
+            importances = model.feature_importances_
+            indices = np.argsort(importances)[::-1]
+            
+            print("Top Admission Factors:")
+            for i in range(min(5, len(feature_names))):
+                print(f"{i+1}. {feature_names[indices[i]]}: {importances[indices[i]]:.4f}")
+            
+            return importances
+    
+    @staticmethod
+    def admission_probability_stats(y_pred_proba):
+        """Analyze probability distribution"""
+        probabilities = y_pred_proba[:, 1]
+        
+        stats = {
+            'mean_probability': probabilities.mean(),
+            'median_probability': np.median(probabilities),
+            'high_confidence': (probabilities > 0.8).sum(),
+            'borderline': ((probabilities >= 0.4) & (probabilities <= 0.6)).sum(),
+            'low_confidence': (probabilities < 0.2).sum()
+        }
+        
+        return stats
+    
+    @staticmethod
+    def early_prediction_potential(model, X_partial):
+        """Predict with partial information"""
+        # Predict using only critical features
+        probabilities = model.predict_proba(X_partial)
+        
+        return probabilities[:, 1]
+```
+
 ## 💡 Interview Talking Points
 
-**Q: Why multiple models?**
+**Q: Class imbalance in admissions?**
 ```
 Answer:
-- Different models capture different patterns
-- Ensemble combining strengths
-- Some handle non-linearity better
-- Model selection requires comparison
+- Acceptance rare (5-30%)
+- Use ROC-AUC not accuracy
+- Weighted classification
+- Threshold tuning for balance
+- Cost-sensitive learning
 ```
 
-**Q: How interpret coefficients?**
+**Q: Model interpretability critical?**
 ```
 Answer:
-- Linear model: 1 unit increase → coefficient change in target
-- Ridge/Lasso: Trade-off between bias and variance
-- Tree models: Feature importance via splits
+- Fairness and transparency needed
+- SHAP for feature importance
+- Threshold analysis necessary
+- Bias detection (gender, race)
+- Legal/ethical compliance
 ```
 
 ## 🌟 Portfolio Value
 
-✅ Regression fundamentals
-✅ Feature analysis & selection
-✅ Multiple regression models
-✅ Hyperparameter tuning
-✅ Prediction intervals
-✅ Model comparison
-✅ Residual analysis
+✅ Classification modeling
+✅ Feature engineering
+✅ Ensemble methods
+✅ ROC-AUC evaluation
+✅ Threshold analysis
+✅ Educational domain
+✅ Interpretability focus
 
 ---
 
-**Technologies**: Scikit-learn, Pandas, NumPy, Matplotlib, SciPy
+**Technologies**: Scikit-learn, Pandas, XGBoost
 
